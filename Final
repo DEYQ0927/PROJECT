@@ -1,0 +1,237 @@
+import tkinter as tk
+from tkinter import messagebox, simpledialog, Toplevel      #Messagebox = Display Pop Up Dialogs with Buttons/ Simpledialog = Prompt the User for Input in a dialog box/ Toplevel = Create Additional Windows
+import json     #Storing and Exchanging data in a Structured Format
+import os       #Perform tasks such as file manipulation, working with the file system, environment variables, and executing system commands.
+from datetime import datetime       #Allows manipulate, format on date and time values
+
+TASK = "tasks.json"
+
+#Load Task from Path
+def load():
+    if os.path.exists(TASK):
+        with open(TASK, "r") as file:
+            return json.load(file)
+    return {}
+
+#Save Task into Path 
+def save(tasks):  
+    with open(TASK, "w") as file:
+        json.dump(tasks, file)
+
+class ToDo:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("To-Do List Manager")
+        self.tasks = load()
+
+        #Frame Design for Categories and Task Details
+        frame = tk.Frame(root)
+        frame.pack(padx = 10, pady = 10, fill = tk.BOTH, expand = True)     #tk.both expands both horizontal and vertically/expand = True is to fill unused space
+
+        #Left Side = Categories List
+        left_frame = tk.Frame(frame)
+        left_frame.pack(side = tk.LEFT, padx = 10, pady = 10, fill = tk.Y)
+
+        self.cat = tk.Listbox(left_frame, width = 30, height = 15)
+        self.cat.pack(fill=tk.Y)
+        self.cat.bind("<<ListboxSelect>>", self.show)
+
+        #Right Side = Task Details
+        right_frame = tk.Frame(frame)
+        right_frame.pack(side = tk.LEFT, padx = 10, pady = 10, fill = tk.BOTH, expand = True)
+
+        self.task_display = tk.Listbox(right_frame, width = 60, height = 15, state = 'disabled')
+        self.task_display.pack(fill = tk.BOTH, expand = True)
+
+        #Action Button below Cat Frame and Task Frame
+        self.button_frame = tk.Frame(root)
+        self.button_frame.pack(pady = 10)
+
+        #Action Button 
+        tk.Button(self.button_frame, text = "Add Task", width = 10, command = self.add).pack(side = tk.LEFT, padx = 5)
+        tk.Button(self.button_frame, text = "Remove Task", width = 10, command = self.remove).pack(side = tk.LEFT, padx = 5)
+        tk.Button(self.button_frame, text = "View Tasks", width = 10, command = self.view).pack(side = tk.LEFT, padx = 5)
+        tk.Button(self.button_frame, text = "Edit Task", width = 10, command = self.edit).pack(side = tk.LEFT, padx = 5)
+        tk.Button(self.button_frame, text = "Update Status", width = 10, command = self.update_status1).pack(side = tk.LEFT, padx = 5)
+        tk.Button(self.button_frame, text = "Exit", width = 10, command = self.exit).pack(side = tk.LEFT, padx = 5)
+
+        #Auto Update the Category and Discard the Previous Data after an Action is made
+        self.update_cat()
+
+    def exit(self):
+        self.root.quit()
+
+    #Update Category
+    def update_cat(self):
+        self.cat.delete(0, tk.END)
+        for category in self.tasks:
+            self.cat.insert(tk.END, category)
+
+    #Display Task in the Frame with Name, Status, and Deadline
+    def show(self, event=None):
+        self.task_display.config(state="normal")
+        self.task_display.delete(0, tk.END)
+        category = self.get_selected_category()
+        if category:
+            tasks = self.tasks[category]
+            for i, task in enumerate(tasks, start=1):   
+                deadline = task.get("deadline", "No deadline")
+                self.task_display.insert(tk.END, f"{i}. {task['name']} (Status: {task['status']}, Deadline: {deadline})")
+        self.task_display.config(state="disabled")
+
+    #Add Task 
+    def add(self):
+        while True:
+            category = simpledialog.askstring("New Task", "Category:").capitalize()
+            task_name = simpledialog.askstring("New Task", "Task name:")
+            if category and task_name:
+                self.tasks.setdefault(category, []).append({"name": task_name, "status": "Pending"})
+                save(self.tasks)
+                self.update_cat()
+                self.select_category(category)
+                self.show()
+                messagebox.showinfo("Task Added", "Congratulations, Task Added Successfully!")
+                break  
+            else:
+                messagebox.showinfo("Add Task", "Task Name/Category cannot be left empty. Please try again!")
+
+
+    #Remove Task
+    def remove(self):
+        category = self.get_selected_category()
+        if category:
+            while True:  
+                task_number = simpledialog.askinteger("Remove Task", "Enter the task number to remove:")
+                if task_number is None:
+                    break
+                if 1 <= task_number <= len(self.tasks[category]):
+                    removed_task = self.tasks[category].pop(task_number - 1)
+                    if not self.tasks[category]:
+                        del self.tasks[category]
+                    save(self.tasks)
+                    self.update_cat()
+                    self.show()
+                    messagebox.showinfo("Task Removed", f"Removed task: {removed_task['name']}")
+                    break
+                else:
+                    messagebox.showerror("Error", "Invalid task number. Please try again.")
+        else:
+            messagebox.showerror("Error", "Select a category first.")
+
+    #View All Task
+    def view(self):
+        if not self.tasks:
+            messagebox.showinfo("Error", "No tasks to display.")
+            return
+
+        window = Toplevel(self.root)    #Create a new Window on top of all other windows
+        window.title("Tasks")
+        text = tk.Text(window, width = 70, height = 20)
+        text.pack(padx = 10, pady = 10)
+
+        #Display Task within Category with name,status,and deadline 
+        for category, task_list in self.tasks.items():
+            text.insert(tk.END, f"Category: {category}\n")
+            for i, task in enumerate(task_list, start = 1): #Get Value and Index number 
+                deadline = task.get("deadline", "No deadline")
+                text.insert(
+                    tk.END, f"  {i}. {task['name']} (Status: {task['status']}, Deadline: {deadline})\n"
+                )
+            text.insert(tk.END, "\n")
+
+    #Action Button to Display of Update Status
+    def update_status1(self):
+        category = self.get_selected_category()
+        if category:
+            task_number = simpledialog.askinteger("Update Status", "Please enter task number:")
+            if task_number and 1 <= task_number <= len(self.tasks[category]):
+                task = self.tasks[category][task_number - 1]
+                window = Toplevel(self.root)
+                window.title(f"Update Status: {task['name']}")
+
+                tk.Button(window, text = "Pending", width = 10, command = lambda: self.update_status2(category, task_number - 1, "Pending", window)).pack(pady = 5)
+                tk.Button(window, text = "In Progress", width = 10, command = lambda: self.update_status2(category, task_number - 1, "In Progress", window)).pack(pady = 5)
+                tk.Button(window, text = "Completed", width = 10, command = lambda: self.update_status2(category, task_number - 1, "Completed", window)).pack(pady = 5)
+            else:
+                messagebox.showerror("Error", "Invalid task number.")
+        else:
+            messagebox.showerror("Error", "Select a category first.")
+
+    #Update the Status of The Selected Task 
+    def update_status2(self, category, task_index, new_status, window):
+        self.tasks[category][task_index]["status"] = new_status
+        save(self.tasks)
+        window.destroy()    #End Task the Used Window
+        self.show()
+        messagebox.showinfo("Status Updated", f"Status updated to: {new_status}")
+
+    #Action Button to Edit Task
+    def edit(self):
+        category = self.get_selected_category()
+        if category:
+            task_number = simpledialog.askinteger("Edit Task", "Enter the task number to edit:")
+            if task_number and 1 <= task_number <= len(self.tasks[category]):
+                task = self.tasks[category][task_number - 1]
+                window = Toplevel(self.root)
+                window.title(f"Edit Task: {task['name']}")
+                tk.Button(window, text = "Edit Task Name", width = 12, command = lambda: self.name(task, window)).pack(pady=5)
+                tk.Button(window, text = "Set Deadline", width = 12, command = lambda: self.deadline(task, window)).pack(pady=5)
+            else:
+                messagebox.showerror("Error", "Invalid task number.")
+        else:
+            messagebox.showerror("Error", "Please select a category.")
+
+    #Edit Task Name from an Existing Task
+    def name(self, task, window):
+        new = simpledialog.askstring("Edit Task Name", f"New Task Name (current: {task['name']}):")
+        if new == "":
+            messagebox.showerror("Error", "Task name cannot be empty.")
+        elif new:
+            if new != task["name"]: 
+                task["name"] = new
+                save(self.tasks)
+                self.show()
+                messagebox.showinfo("Task Updated", "Task name updated successfully!")
+            else:
+                messagebox.showinfo("No Change", "Task name is unchanged.")
+        elif new is None: 
+            messagebox.showinfo("No Changes", "Operation is canceled.")
+        window.destroy()
+
+    
+    def deadline(self, task, window):
+        while True:
+            deadline = simpledialog.askstring("Set Deadline", f"Current Deadline: {task.get('deadline', 'No deadline')}\nEnter a new deadline (DD/MM/YYYY):")
+            if deadline is None:
+                return
+            try:
+                if deadline.strip():  # Check if input is not empty or just spaces
+                    datetime.strptime(deadline, "%d/%m/%Y")  # Validate DD/MM/YYYY format
+                    task["deadline"] = deadline
+                    save(self.tasks)
+                    self.show()
+                    messagebox.showinfo("Deadline Set", f"Deadline set to: {deadline}")
+                    window.destroy()
+                    break  
+                else:
+                    messagebox.showinfo("Error", "Deadline cannot be empty.")
+            except ValueError:
+                messagebox.showerror("Error", "Only the DD/MM/YYYY format is accepted.")
+
+
+    def get_selected_category(self):
+        try:
+            return self.cat.get(self.cat.curselection()[0])
+        except IndexError:
+            return None
+
+    def select_category(self, category):
+        for i, name in enumerate(self.tasks):
+            if name == category:
+                self.cat.select_set(i)
+                break
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    ToDo(root)
+    root.mainloop()
