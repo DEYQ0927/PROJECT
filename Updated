@@ -171,14 +171,10 @@ class ToDo:
             task_number = simpledialog.askinteger("Edit Task", "Enter the task number to edit:")
             if task_number and 1 <= task_number <= len(self.tasks[category]):
                 task = self.tasks[category][task_number - 1]
-
-                # Create a Popup to Select Which part of the Task to Edit
                 window = Toplevel(self.root)
                 window.title(f"Edit Task: {task['name']}")
-
                 tk.Button(window, text = "Edit Task Name", width = 12, command = lambda: self.name(task, window)).pack(pady=5)
                 tk.Button(window, text = "Set Deadline", width = 12, command = lambda: self.deadline(task, window)).pack(pady=5)
-
             else:
                 messagebox.showerror("Error", "Invalid task number.")
         else:
